@@ -121,9 +121,8 @@ open dist/TuTuMac.app           # 像正式 App 一样双击/打开
   窗口 pid 不完全一致。如果映射不生效,请确认模拟器窗口确实处于最前台。
 - **按键映射需要辅助功能权限**:`CGEventTap` 依赖「系统设置 → 隐私与安全性 →
   辅助功能」授权,应用内会提示并可一键跳转请求。
-- **打包为正式 .app 仍无自定义图标**:`Scripts/build_app.sh` 已生成标准 `.app`
-  bundle(含 `Info.plist`、ad-hoc 签名),但没有 `.icns` 图标资源,显示为系统默认
-  图标;如需自定义图标,把 `.icns` 放进 `Contents/Resources` 并在 `Info.plist`
-  加 `CFBundleIconFile` 即可。
+- **打包为正式 .app 已内置图标**:`Resources/AppIcon.icns`(卡通小兔头像)会在打包时自动
+  写入 `Contents/Resources`,`Info.plist` 里通过 `CFBundleIconFile` 引用,双击 `.app`
+  能看到自定义图标,而不是系统默认图标。
 - **未包含**:Google Play 登录/GApps 集成、多实例"一键同步操作"(对多个实例广播
   同一按键映射)。
