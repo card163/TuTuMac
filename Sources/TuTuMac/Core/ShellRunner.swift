@@ -101,6 +101,62 @@ enum ShellRunner {
         return output
     }
 
+    /// 和 `runAutoAcceptingPrompts` 类似,但会把标准输出/错误逐块实时回调出去(而不是等
+    /// 进程结束才拿到全部内容),用于解析 sdkmanager 下载进度百分比之类的场景。
+    /// `onOutput` 可能在任意后台线程被调用,调用方需要自行切回所需的线程/actor。
+    @discardableResult
+    static func streamAutoAcceptingPrompts(
+        _ executable: String,
+        _ arguments: [String],
+        onOutput: @escaping (String) -> Void
+    ) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        let inPipe = Pipe()
+        let outPipe = Pipe()
+        process.standardInput = inPipe
+        process.standardOutput = outPipe
+        process.standardError = outPipe
+
+        var accumulated = Data()
+        let lock = NSLock()
+        outPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            lock.lock()
+            accumulated.append(data)
+            lock.unlock()
+            if let text = String(data: data, encoding: .utf8) {
+                onOutput(text)
+            }
+        }
+
+        do {
+            try process.run()
+        } catch {
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            throw ShellError.launchFailed(error.localizedDescription)
+        }
+
+        if let answers = String(repeating: "y\n", count: 20).data(using: .utf8) {
+            inPipe.fileHandleForWriting.write(answers)
+        }
+        try? inPipe.fileHandleForWriting.close()
+
+        process.waitUntilExit()
+        outPipe.fileHandleForReading.readabilityHandler = nil
+
+        lock.lock()
+        let output = String(data: accumulated, encoding: .utf8) ?? ""
+        lock.unlock()
+
+        if process.terminationStatus != 0 {
+            throw ShellError.nonZeroExit(process.terminationStatus, output)
+        }
+        return output
+    }
+
     /// 启动一个长期运行的后台进程(如 emulator),返回 Process 供调用方持有和终止。
     static func spawn(_ executable: String, _ arguments: [String], currentDirectory: URL? = nil) throws -> Process {
         let process = Process()

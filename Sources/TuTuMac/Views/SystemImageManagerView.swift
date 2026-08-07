@@ -8,6 +8,7 @@ struct SystemImageManagerView: View {
     @State private var packages: [SystemImagePackage] = []
     @State private var showAllArchitectures = false
     @State private var downloadingIds: Set<String> = []
+    @State private var progressPercent: [String: Double] = [:]
     @State private var messages: [String: String] = [:]
     @State private var isLoading = false
     @State private var loadError: String?
@@ -85,8 +86,17 @@ struct SystemImageManagerView: View {
                 .font(.caption)
         } else if downloadingIds.contains(pkg.id) {
             HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text("下载中…").font(.caption)
+                if let percent = progressPercent[pkg.id] {
+                    ProgressView(value: percent, total: 100)
+                        .frame(width: 100)
+                    Text("\(Int(percent))%")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .frame(width: 34, alignment: .trailing)
+                } else {
+                    ProgressView().controlSize(.small)
+                    Text("准备中…").font(.caption)
+                }
             }
         } else {
             Button("下载") { download(pkg) }
@@ -118,20 +128,43 @@ struct SystemImageManagerView: View {
         guard let avdManager = appState.avdManager else { return }
         downloadingIds.insert(pkg.id)
         messages[pkg.id] = nil
+        progressPercent[pkg.id] = nil
+        let id = pkg.id
         Task.detached(priority: .userInitiated) {
+            var buffer = ""
             do {
-                try avdManager.installSystemImage(pkg.id)
+                try avdManager.installSystemImage(id) { chunk in
+                    buffer += chunk
+                    if buffer.count > 800 { buffer = String(buffer.suffix(800)) }
+                    if let percent = extractDownloadPercent(from: buffer) {
+                        Task { @MainActor in
+                            progressPercent[id] = percent
+                        }
+                    }
+                }
                 await MainActor.run {
-                    downloadingIds.remove(pkg.id)
-                    messages[pkg.id] = "安装完成"
+                    downloadingIds.remove(id)
+                    progressPercent[id] = nil
+                    messages[id] = "安装完成"
                     reload()
                 }
             } catch {
                 await MainActor.run {
-                    downloadingIds.remove(pkg.id)
-                    messages[pkg.id] = "安装失败: \(error.localizedDescription)"
+                    downloadingIds.remove(id)
+                    progressPercent[id] = nil
+                    messages[id] = "安装失败: \(error.localizedDescription)"
                 }
             }
         }
     }
+}
+
+/// 从 sdkmanager 输出中提取最新的百分比,形如: `[====   ] 31% Downloading xxx.zip...`
+/// 是自由函数(不是 View 里的方法),避免被推断成 @MainActor 隔离,方便在后台线程里调用。
+private func extractDownloadPercent(from text: String) -> Double? {
+    guard let regex = try? NSRegularExpression(pattern: "(\\d{1,3})%") else { return nil }
+    let nsText = text as NSString
+    let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+    guard let last = matches.last, last.numberOfRanges > 1 else { return nil }
+    return Double(nsText.substring(with: last.range(at: 1)))
 }

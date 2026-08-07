@@ -117,9 +117,10 @@ final class AVDManager {
     }
 
     /// 下载并安装一个系统镜像(会自动接受许可确认提示)。
+    /// `onOutputLine` 会被高频调用、可能在任意后台线程,用于解析下载进度等实时信息。
     @discardableResult
-    func installSystemImage(_ packageId: String) throws -> String {
-        try ShellRunner.runAutoAcceptingPrompts(sdk.sdkmanager.path, [packageId])
+    func installSystemImage(_ packageId: String, onOutputLine: @escaping (String) -> Void = { _ in }) throws -> String {
+        try ShellRunner.streamAutoAcceptingPrompts(sdk.sdkmanager.path, [packageId], onOutput: onOutputLine)
     }
 
     @discardableResult
