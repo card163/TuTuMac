@@ -74,6 +74,54 @@ final class AVDManager {
             }
     }
 
+    /// 列出 sdkmanager 已知的全部系统镜像(已安装 + 可下载),用于「系统镜像管理」界面。
+    func listAllSystemImages() throws -> [SystemImagePackage] {
+        let output = try ShellRunner.run(sdk.sdkmanager.path, ["--list"])
+        guard let installedHeader = output.range(of: "Installed packages:"),
+              let availableHeader = output.range(of: "Available Packages:") else {
+            return []
+        }
+        let installedSection = output[installedHeader.upperBound..<availableHeader.lowerBound]
+        let availableSection = output[availableHeader.upperBound...]
+
+        var byId: [String: SystemImagePackage] = [:]
+        for pkg in Self.parseSystemImageLines(String(availableSection), isInstalled: false) {
+            byId[pkg.id] = pkg
+        }
+        // 已安装的优先覆盖(同一 id 理论上不会同时出现在两个 section,这里只是保险)。
+        for pkg in Self.parseSystemImageLines(String(installedSection), isInstalled: true) {
+            byId[pkg.id] = pkg
+        }
+        return byId.values.sorted { $0.id < $1.id }
+    }
+
+    private static func parseSystemImageLines(_ section: String, isInstalled: Bool) -> [SystemImagePackage] {
+        section
+            .split(separator: "\n")
+            .compactMap { line -> SystemImagePackage? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("system-images;") else { return nil }
+                let columns = trimmed.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+                guard let id = columns.first else { return nil }
+                let parts = id.split(separator: ";")
+                guard parts.count == 4 else { return nil }
+                return SystemImagePackage(
+                    id: id,
+                    apiLevel: String(parts[1]).replacingOccurrences(of: "android-", with: ""),
+                    variant: String(parts[2]),
+                    abi: String(parts[3]),
+                    description: columns.count >= 3 ? columns[2] : "",
+                    isInstalled: isInstalled
+                )
+            }
+    }
+
+    /// 下载并安装一个系统镜像(会自动接受许可确认提示)。
+    @discardableResult
+    func installSystemImage(_ packageId: String) throws -> String {
+        try ShellRunner.runAutoAcceptingPrompts(sdk.sdkmanager.path, [packageId])
+    }
+
     @discardableResult
     func createAVD(name: String, systemImage: String, device: String, sdcardSizeMB: Int = 512) throws -> String {
         let output = try ShellRunner.run(sdk.avdmanager.path, [

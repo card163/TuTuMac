@@ -59,6 +59,48 @@ enum ShellRunner {
         return output
     }
 
+    /// 运行一个可能会弹出"Accept? (y/N)"许可确认交互的命令(典型场景: sdkmanager 下载
+    /// 未接受过许可的系统镜像),提前往 stdin 里灌入一批 "y",相当于 `yes | 命令`。
+    @discardableResult
+    static func runAutoAcceptingPrompts(_ executable: String, _ arguments: [String]) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        let inPipe = Pipe()
+        let outPipe = Pipe()
+        process.standardInput = inPipe
+        process.standardOutput = outPipe
+        process.standardError = outPipe
+
+        do {
+            try process.run()
+        } catch {
+            throw ShellError.launchFailed(error.localizedDescription)
+        }
+
+        // sdkmanager 最多会为几种不同的许可证分别弹一次确认,20 次 "y" 足够覆盖。
+        if let answers = String(repeating: "y\n", count: 20).data(using: .utf8) {
+            inPipe.fileHandleForWriting.write(answers)
+        }
+        try? inPipe.fileHandleForWriting.close()
+
+        var outData = Data()
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global(qos: .utility).async {
+            outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+            group.leave()
+        }
+        process.waitUntilExit()
+        group.wait()
+
+        let output = String(data: outData, encoding: .utf8) ?? ""
+        if process.terminationStatus != 0 {
+            throw ShellError.nonZeroExit(process.terminationStatus, output)
+        }
+        return output
+    }
+
     /// 启动一个长期运行的后台进程(如 emulator),返回 Process 供调用方持有和终止。
     static func spawn(_ executable: String, _ arguments: [String], currentDirectory: URL? = nil) throws -> Process {
         let process = Process()

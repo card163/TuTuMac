@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var selection: EmulatorInstance.ID?
     @State private var showingCreateSheet = false
     @State private var showingSDKSettings = false
+    @State private var showingSystemImages = false
 
     var body: some View {
         NavigationSplitView {
@@ -25,6 +26,13 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem {
                 Button {
+                    showingSystemImages = true
+                } label: {
+                    Label("系统镜像管理", systemImage: "arrow.down.circle")
+                }
+            }
+            ToolbarItem {
+                Button {
                     showingSDKSettings = true
                 } label: {
                     Label("SDK 设置", systemImage: "gearshape")
@@ -36,6 +44,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingSDKSettings) {
             SDKSettingsView()
+        }
+        .sheet(isPresented: $showingSystemImages) {
+            SystemImageManagerView()
         }
     }
 }

@@ -10,6 +10,7 @@ struct CreateInstanceSheet: View {
     @State private var systemImages: [String] = []
     @State private var errorMessage: String?
     @State private var isCreating = false
+    @State private var showingSystemImageManager = false
 
     private let deviceProfiles = ["pixel_5", "pixel_6", "pixel_7", "pixel_tablet", "Nexus 5"]
 
@@ -39,9 +40,14 @@ struct CreateInstanceSheet: View {
             }
 
             if compatibleImages.isEmpty {
-                Text("未检测到与本机架构(\(HostArchitecture.compatibleABI))兼容的已安装系统镜像,请先用 sdkmanager 安装,例如:\nsdkmanager \"system-images;android-34;google_apis_playstore;\(HostArchitecture.compatibleABI)\"")
+                Text("未检测到与本机架构(\(HostArchitecture.compatibleABI))兼容的已安装系统镜像。")
                     .font(.caption)
                     .foregroundStyle(.orange)
+                Button("去下载系统镜像…") { showingSystemImageManager = true }
+                    .font(.caption)
+            } else {
+                Button("管理/下载更多系统镜像…") { showingSystemImageManager = true }
+                    .font(.caption)
             }
 
             if !incompatibleImages.isEmpty {
@@ -65,6 +71,9 @@ struct CreateInstanceSheet: View {
         .padding()
         .frame(width: 460)
         .onAppear(perform: loadImages)
+        .sheet(isPresented: $showingSystemImageManager, onDismiss: loadImages) {
+            SystemImageManagerView()
+        }
     }
 
     private func loadImages() {
