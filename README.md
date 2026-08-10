@@ -115,6 +115,20 @@ open dist/TuTuMac.app           # 像正式 App 一样双击/打开
 注意: ad-hoc 签名只适合本机自用,**不能**用于分发给其他 Mac(会被 Gatekeeper 拦截)。
 如需分发,需要 Apple Developer 账号做正式签名 + 公证(notarization)。
 
+## 打包为 .dmg 安装包
+
+```bash
+cd mumu
+./Scripts/build_app.sh              # 先生成 dist/TuTuMac.app
+brew install create-dmg             # 首次使用需要安装(仅一次)
+./Scripts/build_dmg.sh 1.1.0        # 生成 dist/TuTuMac-1.1.0-macOS.dmg
+```
+
+生成的 `.dmg` 是标准的"拖拽到 Applications 安装"体验:双击挂载后能看到
+`TuTuMac.app` 和指向 `/Applications` 的快捷方式,拖过去即可安装。同样是 ad-hoc
+签名,分发给别人时对方首次打开需要右键「打开」确认,或执行
+`xattr -cr /Applications/TuTuMac.app` 去掉隔离标记。
+
 ## 已知限制 / 后续可做的事
 
 - **窗口未嵌入**:模拟器本身仍以 Google 官方 Qt 窗口独立显示,TuTuMac 是外部

@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 CONFIGURATION="${1:-release}"
 APP_NAME="TuTuMac"
 BUNDLE_ID="com.tutumac.app"
-VERSION="1.0.0"
+VERSION="1.1.0"
 BUILD_NUMBER="$(date +%Y%m%d%H%M)"
 
 echo "==> swift build -c $CONFIGURATION"
